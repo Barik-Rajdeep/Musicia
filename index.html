@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Musicia — Handy APK</title>
+
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+
+    <!-- Firebase (compat) for optional cloud save/load -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js" defer></script>
+
+    <style>
+        :root {
+            --bg1: #071428;
+            --bg2: #0b1630;
+            --card: #071028;
+            --accent: #7c3aed;
+            --muted: #9aa4b2;
+            --glass: rgba(255,255,255,0.04);
+            --success: #16a34a;
+            --danger: #ef4444;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+        html, body { height: 100%; margin: 0; }
+
+        body {
+            margin: 0;
+            color: #e6eef8;
+            padding: 28px;
+            min-height: 100vh;
+            background: linear-gradient(120deg, var(--bg1) 0%, var(--bg2) 50%, #13243a 100%);
+            background-size: 200% 200%;
+            animation: bgShift 12s linear infinite;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        @keyframes bgShift {
+            0% { background-position: 0% 50% }
+            50% { background-position: 100% 50% }
+            100% { background-position: 0% 50% }
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            left: -20%;
+            top: -10%;
+            width: 80vw;
+            height: 80vh;
+            background:
+                radial-gradient(600px 300px at 10% 10%, rgba(124,58,237,0.10), transparent 12%),
+                radial-gradient(400px 200px at 90% 70%, rgba(16,185,129,0.06), transparent 8%),
+                radial-gradient(300px 160px at 60% 20%, rgba(59,130,246,0.05), transparent 8%);
+            pointer-events: none;
+            filter: blur(24px);
+            mix-blend-mode: screen;
+        }
+
+        .wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+        @media (max-width: 880px) { .wrap { grid-template-columns: 1fr; } }
+
+        header { grid-column: 1 / -1; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+        h1 { margin: 0; font-size: 20px; letter-spacing: 0.2px; }
+        .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+        .panel {
+            background: linear-gradient(180deg, var(--card), rgba(10,15,25,0.7));
+            padding: 16px;
+            border-radius: var(--radius);
+            box-shadow: 0 6px 28px rgba(2,6,23,0.6);
+        }
+
+        label { display: block; font-size: 13px; margin-top: 12px; color: var(--muted); }
+        input[type=text], input[type=date], input[type=time], textarea, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.04);
+            background: var(--glass);
+            color: inherit;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+
+        .small { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 0;
+            cursor: pointer;
+            transition: transform .12s ease, box-shadow .12s ease;
+            background: transparent;
+            color: inherit;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn:focus { outline: 2px solid rgba(124,58,237,0.18); outline-offset: 3px; }
+
+        .ico { width: 16px; height: 16px; display: inline-block; flex: 0 0 16px; }
+
+        .btn-primary { background: linear-gradient(90deg, var(--accent), #5b21b6); color: white; box-shadow: 0 6px 18px rgba(124,58,237,0.12); }
+        .btn-ghost { border: 1px solid rgba(255,255,255,0.03); color: var(--muted); }
+        .btn-flat { border: 1px dashed rgba(255,255,255,0.03); color: var(--muted); }
+        .btn.warn { color: var(--danger); border: 1px solid rgba(255,255,255,0.03); }
+
+        .btn-small { padding: 6px 10px; border-radius: 999px; font-size: 13px; }
+
+        .songs-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .song-row { display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 8px; }
+        .song-row span { flex: 1; }
+
+        .meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+        .meta-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+
+        .gigs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+        .gig {
+            padding: 12px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+        .gig h3 { margin: 0; font-size: 15px; }
+
+        .controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .chip { background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+
+        footer { grid-column: 1 / -1; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; }
+
+        input[type=file] { display: none; }
+
+        .empty { color: var(--muted); padding: 24px; text-align: center; border-radius: 10px; background: rgba(255,255,255,0.02); }
+
+        /* fixed app icon */
+        .app-icon {
+            position: fixed;
+            left: 18px;
+            top: 18px;
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(124,58,237,0.18), rgba(59,130,246,0.06));
+            box-shadow: 0 8px 22px rgba(7,10,20,0.6), inset 0 -6px 18px rgba(255,255,255,0.02);
+            z-index: 60;
+            -webkit-backdrop-filter: blur(6px) saturate(120%);
+            backdrop-filter: blur(6px) saturate(120%);
+            border: 1px solid rgba(255,255,255,0.04);
+            cursor: pointer;
+        }
+        .app-icon img { width: 28px; height: 28px; display: block; object-fit: cover; border-radius: 8px; }
+    </style>
+    <!-- Favicons / taskbar icons (inline SVG data URI) -->
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
+    <!-- App icon (click to upload PNG) -->
+    <!-- Favicons / taskbar icons (inline SVG data URI) -->
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
+    <meta name="msapplication-TileImage" content="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
+    <meta name="msapplication-TileColor" content="#071428">
+
+    <!-- App icon (click to upload PNG) -->
+    <div class="app-icon" id="appIcon" title="Handy APK">
+        <!-- default music-note icon shown until user uploads a PNG -->
+        <img id="appIconImg" alt="App icon" src="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>" />
+        <input id="appIconFile" type="file" accept="image/png" />
+    </div>
+
+    <div class="wrap">
+        <header>
+            <div>
+                <h1>Musicia</h1>
+                <div class="subtitle">Create gigs, build setlists, save notes and export/import your data</div>
+            </div>
+
+            <div class="top-controls" aria-hidden="false">
+                <button id="exportBtn" class="btn btn-ghost btn-small" title="Export all gigs">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg>
+                    </span>
+                    Export JSON
+                </button>
+
+                <button id="exportPdfBtn" class="btn btn-ghost btn-small" title="Export gigs to PDF">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 2h7l5 5v13a1 1 0 0 1-1 1H6z"/><path d="M13 2v6h6"/></svg>
+                    </span>
+                    Export PDF
+                </button>
+
+                <button id="shareBtn" class="btn btn-ghost btn-small" title="Share gigs">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 12v7a1 1 0 0 0 1 1h14"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
+                    </span>
+                    Share
+                </button>
+
+                <label class="import-label btn btn-ghost btn-small" title="Import gigs" style="cursor:pointer; gap:8px; display:inline-flex; align-items:center;">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v12"/><path d="M5 10l7-7 7 7"/><path d="M21 21H3"/></svg>
+                    </span>
+                    Import
+                    <input id="importFile" type="file" accept="application/json" />
+                </label>
+
+                <button id="saveCloudBtn" class="btn btn-ghost btn-small" title="Save gigs to cloud">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 16l0-5-4 4-4-4v5"/><path d="M20 16a4 4 0 0 0-4-4h-1.2a6 6 0 1 0-9.6 3"/></svg>
+                    </span>
+                    Save
+                </button>
+
+                <button id="loadCloudBtn" class="btn btn-ghost btn-small" title="Load gigs from cloud">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 12l4 4 4-4"/><path d="M20 16a4 4 0 0 0-4-4h-1.2a6 6 0 1 0-9.6 3"/></svg>
+                    </span>
+                    Load
+                </button>
+
+                <button id="clearAll" class="btn warn btn-small" title="Clear">
+                    <span class="ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 6h18"/><path d="M8 6v14a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                    </span>
+                    Clear
+                </button>
+            </div>
+        </header>
+
+        <aside class="panel" aria-labelledby="gig-form-heading">
+            <h2 id="gig-form-heading" style="margin:0 0 8px 0">New / Edit Gig</h2>
+
+            <form id="gigForm" autocomplete="off">
+                <input type="hidden" id="gigId" value="" />
+                <label for="title">Title</label>
+                <input id="title" type="text" placeholder="e.g. Rooftop Session" required />
+
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <div style="flex:1;">
+                        <label for="date">Date</label>
+                        <input id="date" type="date" title="Date of gig" />
+                    </div>
+                    <div style="width:140px;">
+                        <label for="time">Time</label>
+                        <input id="time" type="time" title="Start time" />
+                    </div>
+                </div>
+
+                <label for="venue" style="margin-top:10px;">Venue</label>
+                <input id="venue" type="text" placeholder="Venue / Location" />
+
+                <label for="notes" style="margin-top:10px;">Notes</label>
+                <textarea id="notes" placeholder="Equipment, contact, special instructions..."></textarea>
+
+                <label style="margin-top:12px;">Add Song to Setlist</label>
+                <div style="display:flex; gap:8px;">
+                    <input id="songInput" type="text" placeholder="Song name or cue (press Enter or Add)" />
+                    <button id="addSongBtn" class="btn btn-primary" type="button">Add</button>
+                </div>
+
+                <div class="songs-list" id="tempSongs" aria-live="polite"></div>
+                <div class="meta small">Tip: press Enter in the song field to add quickly. Reopen a gig to edit its setlist.</div>
+
+                <div style="margin-top:12px; display:flex; gap:8px;">
+                    <button class="btn btn-primary" type="submit">Save Gig</button>
+                    <button id="resetBtn" class="btn btn-ghost" type="button">Reset</button>
+                </div>
+            </form>
+        </aside>
+
+        <main>
+            <div class="panel">
+                <h2 style="margin:0 0 12px 0">Upcoming Gigs</h2>
+                <div id="gigsContainer" class="gigs" aria-live="polite"></div>
+                <div id="emptyState" class="empty" style="display:none">No gigs yet — create your first gig on the left.</div>
+            </div>
+
+            <footer>
+                <div>Local-first • Saved in browser (localStorage). Cloud saves are optional.</div>
+                <div class="chip" id="countChip">0 gigs</div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        // Minimal, single-instance app-icon upload/save
+        (function () {
+            const KEY = 'handyapk.appIcon';
+            const container = document.getElementById('appIcon');
+            const imgEl = document.getElementById('appIconImg');
+            const fileEl = document.getElementById('appIconFile');
+
+            function setImageDataURL(dataURL) {
+                if (!imgEl) return;
+                imgEl.src = dataURL;
+                imgEl.style.display = 'block';
+                try { localStorage.setItem(KEY, dataURL); } catch (e) { /* ignore */ }
+            }
+
+            function loadSaved() {
+                try {
+                    const saved = localStorage.getItem(KEY);
+                    if (saved && imgEl) { imgEl.src = saved; imgEl.style.display = 'block'; }
+                } catch (e) { /* ignore */ }
+            }
+
+            if (container && fileEl && imgEl) {
+                container.addEventListener('click', () => fileEl.click());
+                fileEl.addEventListener('change', (ev) => {
+                    const f = ev.target.files && ev.target.files[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setImageDataURL(reader.result);
+                    reader.readAsDataURL(f);
+                    fileEl.value = '';
+                });
+                loadSaved();
+            }
+        })();
+    </script>
+
+    <script>
+        // GitHub Copilot: localStorage-backed gig manager with JSON/PDF export, Web Share, and optional Firebase cloud save/load.
+        (function () {
+            const STORAGE_KEY = 'handyapk.gigs.v1';
+            let gigs = [];
+
+            // DOM
+            const form = document.getElementById('gigForm');
+            const gigIdInput = document.getElementById('gigId');
+            const titleInput = document.getElementById('title');
+            const dateInput = document.getElementById('date');
+            const timeInput = document.getElementById('time');
+            const venueInput = document.getElementById('venue');
+            const notesInput = document.getElementById('notes');
+            const songInput = document.getElementById('songInput');
+            const addSongBtn = document.getElementById('addSongBtn');
+            const tempSongsEl = document.getElementById('tempSongs');
+            const gigsContainer = document.getElementById('gigsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const countChip = document.getElementById('countChip');
+            const exportBtn = document.getElementById('exportBtn');
+            const exportPdfBtn = document.getElementById('exportPdfBtn');
+            const shareBtn = document.getElementById('shareBtn');
+            const importFile = document.getElementById('importFile');
+            const clearAll = document.getElementById('clearAll');
+            const resetBtn = document.getElementById('resetBtn');
+            const saveCloudBtn = document.getElementById('saveCloudBtn');
+            const loadCloudBtn = document.getElementById('loadCloudBtn');
+
+            let tempSongs = [];
+
+            const saveToStorage = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(gigs));
+            const loadFromStorage = () => {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    gigs = raw ? JSON.parse(raw) : [];
+                } catch (e) { gigs = []; }
+            };
+
+            function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+            function renderTempSongs() {
+                tempSongsEl.innerHTML = '';
+                tempSongs.forEach((s, i) => {
+                    const row = document.createElement('div');
+                    row.className = 'song-row';
+                    const span = document.createElement('span');
+                    span.textContent = (i + 1) + '. ' + s;
+
+                    const btns = document.createElement('div');
+                    btns.style.display = 'flex';
+                    btns.style.gap = '6px';
+
+                    const up = document.createElement('button');
+                    up.className = 'btn btn-ghost';
+                    up.title = 'Move up';
+                    up.textContent = '↑';
+                    up.onclick = () => { if (i > 0) { [tempSongs[i - 1], tempSongs[i]] = [tempSongs[i], tempSongs[i - 1]]; renderTempSongs(); } };
+
+                    const down = document.createElement('button');
+                    down.className = 'btn btn-ghost';
+                    down.title = 'Move down';
+                    down.textContent = '↓';
+                    down.onclick = () => { if (i < tempSongs.length - 1) { [tempSongs[i + 1], tempSongs[i]] = [tempSongs[i], tempSongs[i + 1]]; renderTempSongs(); } };
+
+                    const del = document.createElement('button');
+                    del.className = 'btn';
+                    del.style.color = 'var(--danger)';
+                    del.title = 'Remove';
+                    del.textContent = '✕';
+                    del.onclick = () => { tempSongs.splice(i, 1); renderTempSongs(); };
+
+                    btns.appendChild(up);
+                    btns.appendChild(down);
+                    btns.appendChild(del);
+
+                    row.appendChild(span);
+                    row.appendChild(btns);
+                    tempSongsEl.appendChild(row);
+                });
+            }
+
+            function tag(text) {
+                const t = document.createElement('div');
+                t.className = 'chip';
+                t.textContent = text;
+                return t;
+            }
+
+            function renderGigs() {
+                gigsContainer.innerHTML = '';
+                if (gigs.length === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'none';
+                }
+                gigs.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+                gigs.forEach(g => {
+                    const el = document.createElement('div'); el.className = 'gig';
+                    const h = document.createElement('h3'); h.textContent = g.title || 'Untitled gig';
+
+                    const meta = document.createElement('div'); meta.className = 'meta-row';
+                    if (g.date) meta.appendChild(tag(g.date));
+                    if (g.time) meta.appendChild(tag(g.time));
+                    if (g.venue) meta.appendChild(tag(g.venue));
+
+                    const notes = document.createElement('div'); notes.className = 'meta'; notes.textContent = g.notes || '';
+                    const songsPreview = document.createElement('div'); songsPreview.className = 'meta'; songsPreview.textContent = 'Setlist: ' + ((g.songs && g.songs.length) ? g.songs.join(' • ') : '—');
+
+                    const actions = document.createElement('div'); actions.className = 'controls';
+                    const open = document.createElement('button'); open.className = 'btn btn-primary'; open.textContent = 'Open'; open.onclick = () => openGig(g.id);
+                    const dup = document.createElement('button'); dup.className = 'btn btn-ghost'; dup.textContent = 'Duplicate'; dup.onclick = () => duplicateGig(g.id);
+                    const del = document.createElement('button'); del.className = 'btn'; del.style.color = 'var(--danger)'; del.textContent = 'Delete'; del.onclick = () => deleteGig(g.id);
+
+                    actions.appendChild(open);
+                    actions.appendChild(dup);
+                    actions.appendChild(del);
+
+                    el.appendChild(h);
+                    el.appendChild(meta);
+                    el.appendChild(songsPreview);
+                    if (notes.textContent) el.appendChild(notes);
+                    el.appendChild(actions);
+                    gigsContainer.appendChild(el);
+                });
+                countChip.textContent = gigs.length + (gigs.length === 1 ? ' gig' : ' gigs');
+            }
+
+            function openGig(id) {
+                const g = gigs.find(x => x.id === id);
+                if (!g) return;
+                gigIdInput.value = g.id;
+                titleInput.value = g.title || '';
+                dateInput.value = g.date || '';
+                timeInput.value = g.time || '';
+                venueInput.value = g.venue || '';
+                notesInput.value = g.notes || '';
+                tempSongs = (g.songs || []).slice();
+                renderTempSongs();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            function duplicateGig(id) {
+                const g = gigs.find(x => x.id === id);
+                if (!g) return;
+                const copy = JSON.parse(JSON.stringify(g));
+                copy.id = uid();
+                copy.title = (copy.title || '') + ' (copy)';
+                gigs.push(copy);
+                saveToStorage(); renderGigs();
+            }
+
+            function deleteGig(id) {
+                if (!confirm('Delete this gig?')) return;
+                gigs = gigs.filter(x => x.id !== id);
+                saveToStorage(); renderGigs();
+            }
+
+            form.addEventListener('submit', e => {
+                e.preventDefault();
+                const id = gigIdInput.value || uid();
+                const gig = {
+                    id,
+                    title: titleInput.value.trim(),
+                    date: dateInput.value || '',
+                    time: timeInput.value || '',
+                    venue: venueInput.value.trim(),
+                    notes: notesInput.value.trim(),
+                    songs: tempSongs.slice()
+                };
+                const idx = gigs.findIndex(x => x.id === id);
+                if (idx >= 0) gigs[idx] = gig; else gigs.push(gig);
+                saveToStorage(); renderGigs(); resetForm();
+            });
+
+            function addSongFromInput() {
+                const val = songInput.value.trim();
+                if (!val) return;
+                tempSongs.push(val);
+                songInput.value = '';
+                renderTempSongs();
+            }
+
+            addSongBtn.addEventListener('click', addSongFromInput);
+            songInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addSongFromInput(); } });
+
+            resetBtn.addEventListener('click', () => { resetForm(); });
+
+            function resetForm() {
+                gigIdInput.value = '';
+                titleInput.value = '';
+                dateInput.value = '';
+                timeInput.value = '';
+                venueInput.value = '';
+                notesInput.value = '';
+                songInput.value = '';
+                tempSongs = [];
+                renderTempSongs();
+            }
+
+            exportBtn.addEventListener('click', () => {
+                const data = JSON.stringify(gigs, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'handyapk-gigs.json'; document.body.appendChild(a); a.click();
+                a.remove(); URL.revokeObjectURL(url);
+            });
+
+            exportPdfBtn.addEventListener('click', async () => {
+                try {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+                    const margin = 40;
+                    let y = margin;
+                    doc.setFontSize(16);
+                    doc.text('Handy APK — Gigs', margin, y);
+                    y += 24;
+                    doc.setFontSize(11);
+                    if (gigs.length === 0) {
+                        doc.text('No gigs', margin, y);
+                    } else {
+                        gigs.forEach((g, idx) => {
+                            doc.setFontSize(13);
+                            doc.text(`${idx + 1}. ${g.title || 'Untitled'}`, margin, y); y += 16;
+                            doc.setFontSize(10);
+                            const lines = [
+                                `Date: ${g.date || '—'}`,
+                                `Time: ${g.time || '—'}`,
+                                `Venue: ${g.venue || '—'}`,
+                                `Notes: ${g.notes || '—'}`,
+                                `Setlist: ${(g.songs && g.songs.length) ? g.songs.join(' • ') : '—'}`
+                            ];
+                            lines.forEach(line => {
+                                const split = doc.splitTextToSize(line, 520);
+                                doc.text(split, margin, y);
+                                y += split.length * 12;
+                            });
+                            y += 8;
+                            if (y > 750) { doc.addPage(); y = margin; }
+                        });
+                    }
+                    const pdfBlob = doc.output('blob');
+                    const url = URL.createObjectURL(pdfBlob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'handyapk-gigs.pdf'; document.body.appendChild(a); a.click();
+                    a.remove(); URL.revokeObjectURL(url);
+                } catch (err) { alert('PDF export failed: ' + (err.message || err)); }
+            });
+
+            shareBtn.addEventListener('click', async () => {
+                if (!navigator.share && !navigator.canShare) {
+                    alert('Web Share API not supported in this browser.');
+                    return;
+                }
+                const json = JSON.stringify(gigs, null, 2);
+                try {
+                    const blob = new Blob([json], { type: 'application/json' });
+                    const filesArray = [new File([blob], 'handyapk-gigs.json', { type: 'application/json' })];
+                    if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+                        await navigator.share({ files: filesArray, title: 'Handy APK — Gigs', text: 'My gigs export' });
+                    } else if (navigator.share) {
+                        await navigator.share({ title: 'Handy APK — Gigs', text: json.slice(0, 2000) + (json.length > 2000 ? '\n\n(full data omitted)' : '') });
+                    } else {
+                        alert('Sharing not available.');
+                    }
+                } catch (err) {
+                    alert('Share failed: ' + (err.message || err));
+                }
+            });
+
+            importFile.addEventListener('change', async (e) => {
+                const f = e.target.files[0];
+                if (!f) return;
+                try {
+                    const txt = await f.text();
+                    const imported = JSON.parse(txt);
+                    if (!Array.isArray(imported)) throw new Error('Invalid format');
+                    imported.forEach(it => { if (!it.id) it.id = uid(); });
+                    gigs = gigs.concat(imported);
+                    saveToStorage(); renderGigs();
+                    importFile.value = '';
+                } catch (err) {
+                    alert('Failed to import: ' + (err.message || err));
+                }
+            });
+
+            clearAll.addEventListener('click', () => {
+                if (confirm('Clear all gigs from this browser?')) { gigs = []; saveToStorage(); renderGigs(); }
+            });
+
+            // Firebase cloud save/load (compat). Replace with your project config if needed.
+            const firebaseConfig = {
+                apiKey: "AIzaSyAsMvo5Uwm6zIqbYlENnGNlESo2JwOdthk",
+                authDomain: "musicia-eca74.firebaseapp.com",
+                projectId: "musicia-eca74"
+            };
+            let db = null;
+            try {
+                if (window.firebase && window.firebase.initializeApp) {
+                    window.firebase.initializeApp(firebaseConfig);
+                    db = window.firebase.firestore();
+                }
+            } catch (e) {
+                console.warn('Firebase init failed - cloud features disabled unless config provided.', e);
+            }
+
+            saveCloudBtn.addEventListener('click', async () => {
+                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config.'); return; }
+                try {
+                    const docRef = db.collection('handyapk_users').doc('public_gigs');
+                    await docRef.set({ gigs, updatedAt: new Date().toISOString() });
+                    alert('Saved to cloud.');
+                } catch (err) { alert('Cloud save failed: ' + (err.message || err)); }
+            });
+
+            loadCloudBtn.addEventListener('click', async () => {
+                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config.'); return; }
+                try {
+                    const docRef = db.collection('handyapk_users').doc('public_gigs');
+                    const snap = await docRef.get();
+                    if (!snap.exists) { alert('No cloud data found.'); return; }
+                    const data = snap.data();
+                    if (!data || !Array.isArray(data.gigs)) { alert('Cloud data invalid.'); return; }
+                    const imported = data.gigs.map(it => ({ ...it, id: it.id || uid() }));
+                    const existingIds = new Set(gigs.map(g => g.id));
+                    imported.forEach(it => { if (!existingIds.has(it.id)) gigs.push(it); });
+                    saveToStorage(); renderGigs();
+                    alert('Loaded gigs from cloud.');
+                } catch (err) { alert('Cloud load failed: ' + (err.message || err)); }
+            });
+
+            function init() {
+                loadFromStorage();
+                renderGigs();
+                renderTempSongs();
+            }
+            init();
+        })();
+    </script>
+</body>
+</html>
