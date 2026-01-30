@@ -163,13 +163,9 @@
     <!-- Favicons / taskbar icons (inline SVG data URI) -->
     <link rel="icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
-    <!-- App icon (click to upload PNG) -->
-    <!-- Favicons / taskbar icons (inline SVG data URI) -->
-    <link rel="icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
-    <meta name="msapplication-TileImage" content="data:image/svg+xml;utf8,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%237c3aed'><path%20d='M12%203v10.55A4%204%200%201%200%2014%2017V7h4V3h-6z'/></svg>">
     <meta name="msapplication-TileColor" content="#071428">
-
+</head>
+<body>
     <!-- App icon (click to upload PNG) -->
     <div class="app-icon" id="appIcon" title="Handy APK">
         <!-- default music-note icon shown until user uploads a PNG -->
@@ -184,7 +180,7 @@
                 <div class="subtitle">Create gigs, build setlists, save notes and export/import your data</div>
             </div>
 
-            <div class="top-controls" aria-hidden="false">
+            <div class="top-controls" aria-hidden="false"></div>
                 <button id="exportBtn" class="btn btn-ghost btn-small" title="Export all gigs">
                     <span class="ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg>
@@ -192,7 +188,7 @@
                     Export JSON
                 </button>
 
-                <button id="exportPdfBtn" class="btn btn-ghost btn-small" title="Export gigs to PDF">
+                <button id="exportPdfBtn" class="btn btn-ghost btn-small" title="Export gigs to PDF"></button>
                     <span class="ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 2h7l5 5v13a1 1 0 0 1-1 1H6z"/><path d="M13 2v6h6"/></svg>
                     </span>
@@ -620,24 +616,32 @@
                 if (confirm('Clear all gigs from this browser?')) { gigs = []; saveToStorage(); renderGigs(); }
             });
 
-            // Firebase cloud save/load (compat). Replace with your project config if needed.
+            // For Firebase JS SDK v7.20.0 and later, measurementId is optional
             const firebaseConfig = {
                 apiKey: "AIzaSyAsMvo5Uwm6zIqbYlENnGNlESo2JwOdthk",
                 authDomain: "musicia-eca74.firebaseapp.com",
-                projectId: "musicia-eca74"
+                projectId: "musicia-eca74",
+                storageBucket: "musicia-eca74.firebasestorage.app",
+                messagingSenderId: "898178754577",
+                appId: "1:898178754577:web:c75d4d055739a78d46a9b0",
+                measurementId: "G-D68FXNY4D9"
             };
+
+            // Initialize Firebase (compat) if available. Uses the compat scripts loaded in <head>.
             let db = null;
             try {
                 if (window.firebase && window.firebase.initializeApp) {
                     window.firebase.initializeApp(firebaseConfig);
-                    db = window.firebase.firestore();
+                    if (window.firebase.firestore) {
+                        db = window.firebase.firestore();
+                    }
                 }
             } catch (e) {
                 console.warn('Firebase init failed - cloud features disabled unless config provided.', e);
             }
 
             saveCloudBtn.addEventListener('click', async () => {
-                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config.'); return; }
+                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config or include compat scripts.'); return; }
                 try {
                     const docRef = db.collection('handyapk_users').doc('public_gigs');
                     await docRef.set({ gigs, updatedAt: new Date().toISOString() });
@@ -646,7 +650,7 @@
             });
 
             loadCloudBtn.addEventListener('click', async () => {
-                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config.'); return; }
+                if (!db) { alert('Cloud not configured. Replace firebaseConfig with your project config or include compat scripts.'); return; }
                 try {
                     const docRef = db.collection('handyapk_users').doc('public_gigs');
                     const snap = await docRef.get();
